@@ -18,8 +18,8 @@
 #include <gtest/gtest.h>
 
 using namespace ::testing;
-using exec_aten::ScalarType;
-using exec_aten::Tensor;
+using executorch::aten::ScalarType;
+using executorch::aten::Tensor;
 using executorch::runtime::ArrayRef;
 using executorch::runtime::testing::TensorFactory;
 using torch::executor::broadcast_tensor;
@@ -129,6 +129,15 @@ TEST(BroadcastUtilTest, GetBroadcastTargetSize) {
   EXPECT_TRUE(
       ArrayRef<Tensor::SizesType>(expected_output_size, expected_output_dim)
           .equals(ArrayRef<Tensor::SizesType>({5, 2, 2})));
+
+  Tensor c = tf.zeros({4, 5});
+  err = get_broadcast_target_size(
+      a,
+      c,
+      expected_output_size,
+      torch::executor::kTensorDimensionLimit,
+      &expected_output_dim);
+  EXPECT_EQ(err, torch::executor::Error::InvalidArgument);
 }
 
 size_t linearize_indexes(size_t* indexes, size_t indexes_len, const Tensor& t) {

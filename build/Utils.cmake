@@ -46,18 +46,29 @@ function(executorch_print_configuration_summary)
   message(STATUS "  EXECUTORCH_BUILD_ARM_BAREMETAL         : "
                  "${EXECUTORCH_BUILD_ARM_BAREMETAL}"
   )
+  message(STATUS "  EXECUTORCH_BUILD_CADENCE               : "
+                 "${EXECUTORCH_BUILD_CADENCE}"
+  )
   message(
     STATUS
       "  EXECUTORCH_BUILD_COREML                : ${EXECUTORCH_BUILD_COREML}"
   )
-  message(STATUS "  EXECUTORCH_BUILD_KERNELS_CUSTOM        : "
-                 "${EXECUTORCH_BUILD_KERNELS_CUSTOM}"
+  message(
+    STATUS
+      "  EXECUTORCH_BUILD_CPUINFO               : ${EXECUTORCH_BUILD_CPUINFO}"
+  )
+  message(
+    STATUS
+      "  EXECUTORCH_BUILD_DEVTOOLS              : ${EXECUTORCH_BUILD_DEVTOOLS}"
   )
   message(STATUS "  EXECUTORCH_BUILD_EXECUTOR_RUNNER       : "
                  "${EXECUTORCH_BUILD_EXECUTOR_RUNNER}"
   )
   message(STATUS "  EXECUTORCH_BUILD_EXTENSION_DATA_LOADER : "
                  "${EXECUTORCH_BUILD_EXTENSION_DATA_LOADER}"
+  )
+  message(STATUS "  EXECUTORCH_BUILD_EXTENSION_FLAT_TENSOR : "
+                 "${EXECUTORCH_BUILD_EXTENSION_FLAT_TENSOR}"
   )
   message(STATUS "  EXECUTORCH_BUILD_EXTENSION_MODULE      : "
                  "${EXECUTORCH_BUILD_EXTENSION_MODULE}"
@@ -68,7 +79,7 @@ function(executorch_print_configuration_summary)
   message(STATUS "  EXECUTORCH_BUILD_EXTENSION_TENSOR      : "
                  "${EXECUTORCH_BUILD_EXTENSION_TENSOR}"
   )
-  message(STATUS "  EXECUTORCH_BUILD_EXTENSION_TRAINING      : "
+  message(STATUS "  EXECUTORCH_BUILD_EXTENSION_TRAINING    : "
                  "${EXECUTORCH_BUILD_EXTENSION_TRAINING}"
   )
   message(
@@ -79,22 +90,14 @@ function(executorch_print_configuration_summary)
     STATUS
       "  EXECUTORCH_BUILD_GFLAGS                : ${EXECUTORCH_BUILD_GFLAGS}"
   )
-  message(
-    STATUS
-      "  EXECUTORCH_BUILD_GTESTS                : ${EXECUTORCH_BUILD_GTESTS}"
-  )
   message(STATUS "  EXECUTORCH_BUILD_HOST_TARGETS          : "
                  "${EXECUTORCH_BUILD_HOST_TARGETS}"
   )
-  message(
-    STATUS "  EXECUTORCH_BUILD_MPS                   : ${EXECUTORCH_BUILD_MPS}"
+  message(STATUS "  EXECUTORCH_BUILD_KERNELS_CUSTOM        : "
+                 "${EXECUTORCH_BUILD_KERNELS_CUSTOM}"
   )
-  message(
-    STATUS
-      "  EXECUTORCH_BUILD_PYBIND                : ${EXECUTORCH_BUILD_PYBIND}"
-  )
-  message(
-    STATUS "  EXECUTORCH_BUILD_QNN                   : ${EXECUTORCH_BUILD_QNN}"
+  message(STATUS "  EXECUTORCH_BUILD_KERNELS_CUSTOM_AOT    : "
+                 "${EXECUTORCH_BUILD_KERNELS_CUSTOM_AOT}"
   )
   message(STATUS "  EXECUTORCH_BUILD_KERNELS_OPTIMIZED     : "
                  "${EXECUTORCH_BUILD_KERNELS_OPTIMIZED}"
@@ -103,19 +106,11 @@ function(executorch_print_configuration_summary)
                  "${EXECUTORCH_BUILD_KERNELS_QUANTIZED}"
   )
   message(
-    STATUS "  EXECUTORCH_BUILD_DEVTOOLS              : ${EXECUTORCH_BUILD_DEVTOOLS}"
+    STATUS "  EXECUTORCH_BUILD_MPS                   : ${EXECUTORCH_BUILD_MPS}"
   )
   message(
     STATUS
-      "  EXECUTORCH_BUILD_SIZE_TEST             : ${EXECUTORCH_BUILD_SIZE_TEST}"
-  )
-  message(
-    STATUS
-      "  EXECUTORCH_BUILD_XNNPACK               : ${EXECUTORCH_BUILD_XNNPACK}"
-  )
-  message(
-    STATUS
-      "  EXECUTORCH_BUILD_VULKAN                : ${EXECUTORCH_BUILD_VULKAN}"
+      "  EXECUTORCH_BUILD_NEURON                : ${EXECUTORCH_BUILD_NEURON}"
   )
   message(
     STATUS
@@ -123,7 +118,26 @@ function(executorch_print_configuration_summary)
   )
   message(
     STATUS
-      "  EXECUTORCH_BUILD_CPUINFO               : ${EXECUTORCH_BUILD_CPUINFO}"
+      "  EXECUTORCH_BUILD_PYBIND                : ${EXECUTORCH_BUILD_PYBIND}"
+  )
+  message(
+    STATUS "  EXECUTORCH_BUILD_QNN                   : ${EXECUTORCH_BUILD_QNN}"
+  )
+  message(
+    STATUS
+      "  EXECUTORCH_BUILD_SIZE_TEST             : ${EXECUTORCH_BUILD_SIZE_TEST}"
+  )
+  message(
+    STATUS
+      "  EXECUTORCH_BUILD_TESTS                 : ${EXECUTORCH_BUILD_TESTS}"
+  )
+  message(
+    STATUS
+      "  EXECUTORCH_BUILD_VULKAN                : ${EXECUTORCH_BUILD_VULKAN}"
+  )
+  message(
+    STATUS
+      "  EXECUTORCH_BUILD_XNNPACK               : ${EXECUTORCH_BUILD_XNNPACK}"
   )
 
 endfunction()
@@ -193,7 +207,10 @@ function(extract_sources sources_file)
       elseif("${ANDROID_ABI}" STREQUAL "x86_64")
         set(target_platforms_arg "--target-platforms=shim//:android-x86_64")
       else()
-        message(FATAL_ERROR "Unsupported ANDROID_ABI setting ${ANDROID_ABI}. Please add it here!")
+        message(
+          FATAL_ERROR
+            "Unsupported ANDROID_ABI setting ${ANDROID_ABI}. Please add it here!"
+        )
       endif()
     endif()
     execute_process(
@@ -269,9 +286,12 @@ function(resolve_buck2)
     endif()
   endif()
 
-  # Update the var in the parent scope. Note that this does not modify our
-  # local $BUCK2 value.
-  set(BUCK2 "${buck2}" PARENT_SCOPE)
+  # Update the var in the parent scope. Note that this does not modify our local
+  # $BUCK2 value.
+  set(BUCK2
+      "${buck2}"
+      PARENT_SCOPE
+  )
 
   # The buck2 daemon can get stuck. Killing it can help.
   message(STATUS "Killing buck2 daemon")
@@ -279,8 +299,7 @@ function(resolve_buck2)
     # Note that we need to use the local buck2 variable. BUCK2 is only set in
     # the parent scope, and can still be empty in this scope.
     COMMAND "${buck2} killall"
-    WORKING_DIRECTORY ${executorch_root}
-    COMMAND_ECHO STDOUT
+    WORKING_DIRECTORY ${executorch_root} COMMAND_ECHO STDOUT
   )
 endfunction()
 
@@ -305,3 +324,22 @@ function(resolve_python_executable)
     )
   endif()
 endfunction()
+
+# find_package(Torch CONFIG REQUIRED) replacement for targets that
+# have a header-only Torch dependency. Because find_package sets
+# variables in the parent scope, we use a macro to preserve this
+# rather than maintaining our own list of those variables.
+macro(find_package_torch_headers)
+  # We cannot simply use CMAKE_FIND_ROOT_PATH_BOTH, because that does
+  # not propagate into TorchConfig.cmake.
+  foreach(mode_kind IN ITEMS PACKAGE LIBRARY INCLUDE)
+    set(OLD_CMAKE_FIND_ROOT_PATH_MODE_${mode_kind} ${CMAKE_FIND_ROOT_PATH_MODE_${mode_kind}})
+    set(CMAKE_FIND_ROOT_PATH_MODE_${mode_kind} BOTH)
+  endforeach()
+  if(NOT TARGET torch)
+    find_package(Torch CONFIG REQUIRED)
+  endif()
+  foreach(mode_kind IN ITEMS PACKAGE LIBRARY INCLUDE)
+    set(CMAKE_FIND_ROOT_PATH_MODE_${mode_kind} ${OLD_CMAKE_FIND_ROOT_PATH_MODE_${mode_kind}})
+  endforeach()
+endmacro()

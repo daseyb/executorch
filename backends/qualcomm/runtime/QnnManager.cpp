@@ -154,8 +154,9 @@ Error QnnManager::RegisterMem(
     const std::shared_ptr<TensorWrapper>& tensor_wrapper) {
   SharedBuffer& shared_buffer_manager = SharedBuffer::GetSharedBufferManager();
   // Not enable shared buffer
-  if (!options_->shared_buffer())
+  if (!options_->shared_buffer()) {
     return Error::Internal;
+  }
 
   if (backend_params_ptr_->qnn_mem_manager_ptr_ == nullptr) {
     QNN_EXECUTORCH_LOG_WARN(
@@ -403,19 +404,20 @@ Error QnnManager::Execute(
          ++out_idx) {
       const Qnn_Tensor_t& output_tensor = output_tensor_structs[out_idx];
       std::vector<executorch::aten::SizesType> sizes(
-          QNN_VER_PTR(output_tensor)->dimensions,
-          QNN_VER_PTR(output_tensor)->dimensions +
-              QNN_VER_PTR(output_tensor)->rank);
+          QNN_TENSOR_VER_PTR(output_tensor)->dimensions,
+          QNN_TENSOR_VER_PTR(output_tensor)->dimensions +
+              QNN_TENSOR_VER_PTR(output_tensor)->rank);
 
       auto dump_tensor = executorch::extension::from_blob(
-          QNN_VER_PTR(output_tensor)->clientBuf.data,
+          QNN_TENSOR_VER_PTR(output_tensor)->clientBuf.data,
           sizes,
-          qnn_dtype_to_scalar_type_[QNN_VER_PTR(output_tensor)->dataType]);
+          qnn_dtype_to_scalar_type_[QNN_TENSOR_VER_PTR(output_tensor)
+                                        ->dataType]);
 
       executorch::runtime::event_tracer_log_output_delegate<
           executorch::aten::Tensor>(
           event_tracer,
-          QNN_VER_PTR(output_tensor)->name,
+          QNN_TENSOR_VER_PTR(output_tensor)->name,
           /*delegate_debug_id=*/
           static_cast<executorch::runtime::DebugHandle>(-1),
           *dump_tensor);
