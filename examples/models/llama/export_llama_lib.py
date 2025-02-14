@@ -561,11 +561,13 @@ def _prepare_for_llama_export(args) -> LLMEdgeManager:
     output_dir_path = canonical_path(args.output_dir, dir=True)
     weight_type = WeightType.FAIRSEQ2 if args.fairseq2 else WeightType.LLAMA
 
-    # Conver dtype override string to actual type.
-    if args.quantization_mode in ["8da4w", "8da4w-gptq"]:
+    # Convert dtype override string to actual type.
+    if args.dtype_override is not None:
+        dtype_override = DType[args.dtype_override]
+    elif args.quantization_mode in ["8da4w", "8da4w-gptq"]:
         dtype_override = DType["fp16"]
     else:
-        dtype_override = DType[args.dtype_override]
+        dtype_override = None
 
     edge_manager = _load_llama_model(
         args.model,
@@ -590,7 +592,16 @@ def _prepare_for_llama_export(args) -> LLMEdgeManager:
         metadata_str=args.metadata,
         dtype_override=dtype_override,
         args=args,
-    ).set_output_dir(output_dir_path).source_transform(_get_source_transforms(args.model, dtype_override, args))
+    )
+    # Assumes the checkpoint has uniform dtype.
+    checkpoint_dtype = next(edge_manager.model.parameters()).dtype
+    print(f"checkpoint dtype: {checkpoint_dtype}")
+    # We want to quantize with the model in the checkpoint dtype before casting to dtype_override.
+    edge_manager = edge_manager.set_output_dir(output_dir_path).source_transform(
+        _get_source_transforms(
+            args.model, DType.from_torch_dtype(checkpoint_dtype), args
+        )
+    )
 
     # Override dtype of the model as specified by the user args.
     if dtype_override:
@@ -977,11 +988,21 @@ def _load_llama_model(
         )
     )
 
+    if dtype_override:
+        assert isinstance(
+            dtype_override, DType
+        ), "Override dtype needs to be of type <DType>"
+        dtype = dtype_override
+    else:
+        checkpoint_dtype = next(model.parameters()).dtype
+        dtype = DType.from_torch_dtype(checkpoint_dtype)
+        logging.info(f"Loaded model with dtype={dtype}")
+
     return LLMEdgeManager(
         model=model,
         modelname=modelname,
         max_seq_len=model.max_seq_len,
-        dtype=dtype_override,
+        dtype=dtype,
         use_kv_cache=use_kv_cache,
         generate_full_logits=generate_full_logits,
         example_inputs=example_inputs,
