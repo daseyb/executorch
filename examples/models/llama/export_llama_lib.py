@@ -561,42 +561,47 @@ def _prepare_for_llama_export(args) -> LLMEdgeManager:
     output_dir_path = canonical_path(args.output_dir, dir=True)
     weight_type = WeightType.FAIRSEQ2 if args.fairseq2 else WeightType.LLAMA
 
-    # dtype override
-    if args.dtype_override is not None:
-        dtype_override = DType[args.dtype_override]
-    elif args.quantization_mode in ["8da4w", "8da4w-gptq"]:
+    # Conver dtype override string to actual type.
+    if args.quantization_mode in ["8da4w", "8da4w-gptq"]:
         dtype_override = DType["fp16"]
     else:
-        dtype_override = None
+        dtype_override = DType[args.dtype_override]
 
-    return (
-        _load_llama_model(
-            args.model,
-            checkpoint=checkpoint_path,
-            checkpoint_dir=checkpoint_dir,
-            params_path=params_path,
-            use_kv_cache=args.use_kv_cache,
-            use_sdpa_with_kv_cache=args.use_sdpa_with_kv_cache,
-            generate_full_logits=args.generate_full_logits,
-            weight_type=weight_type,
-            enable_dynamic_shape=args.enable_dynamic_shape,
-            calibration_tasks=args.calibration_tasks,
-            calibration_limit=args.calibration_limit,
-            calibration_seq_length=args.calibration_seq_length,
-            calibration_data=args.calibration_data,
-            tokenizer_path=args.tokenizer_path,
-            verbose=args.verbose,
-            max_seq_len=args.max_seq_length,
-            max_context_len=args.max_context_length,
-            input_prune_map_path=args.input_prune_map,
-            output_prune_map_path=args.output_prune_map,
-            metadata_str=args.metadata,
-            dtype_override=dtype_override,
-            args=args,
-        )
-        .set_output_dir(output_dir_path)
-        .source_transform(_get_source_transforms(args.model, dtype_override, args))
-    )
+    edge_manager = _load_llama_model(
+        args.model,
+        checkpoint=checkpoint_path,
+        checkpoint_dir=checkpoint_dir,
+        params_path=params_path,
+        use_kv_cache=args.use_kv_cache,
+        use_sdpa_with_kv_cache=args.use_sdpa_with_kv_cache,
+        generate_full_logits=args.generate_full_logits,
+        weight_type=weight_type,
+        enable_dynamic_shape=args.enable_dynamic_shape,
+        calibration_tasks=args.calibration_tasks,
+        calibration_limit=args.calibration_limit,
+        calibration_seq_length=args.calibration_seq_length,
+        calibration_data=args.calibration_data,
+        tokenizer_path=args.tokenizer_path,
+        verbose=args.verbose,
+        max_seq_len=args.max_seq_length,
+        max_context_len=args.max_context_length,
+        input_prune_map_path=args.input_prune_map,
+        output_prune_map_path=args.output_prune_map,
+        metadata_str=args.metadata,
+        dtype_override=dtype_override,
+        args=args,
+    ).set_output_dir(output_dir_path).source_transform(_get_source_transforms(args.model, dtype_override, args))
+
+    # Override dtype of the model as specified by the user args.
+    if dtype_override:
+        assert isinstance(
+            dtype_override, DType
+        ), "Override dtype needs to be of type <DType>"
+        torch_dtype = dtype_override.to_torch_dtype()
+        logging.info(f"model.to {torch_dtype}")
+        edge_manager.model = edge_manager.model.to(dtype=torch_dtype)
+
+    return edge_manager
 
 
 def get_quantizer_and_quant_params(args):
@@ -971,38 +976,12 @@ def _load_llama_model(
             args=args,
         )
     )
-    if dtype_override:
-        assert isinstance(
-            dtype_override, DType
-        ), "Override dtype needs to be of type <DType>"
-        torch_dtype = dtype_override.to_torch_dtype()
-        logging.info(f"model.to {torch_dtype}")
-        model = model.to(dtype=torch_dtype)
-        dtype = dtype_override
-    else:
-        state_dict = model.state_dict()
-        dtype = state_dict[next(iter(state_dict))].dtype
-        assert dtype in [
-            torch.bfloat16,
-            torch.float16,
-            torch.float32,
-        ], f"Only support bfloat16, fp16 or fp32 got {dtype}"
-        logging.info(f"Loaded model with dtype={dtype}")
-
-        if dtype == torch.bfloat16:
-            dtype = DType.bf16
-        elif dtype == torch.float16:
-            dtype = DType.fp16
-        elif dtype == torch.float32:
-            dtype = DType.fp32
-        else:
-            raise ValueError(f"Unsupported dtype {dtype}")
 
     return LLMEdgeManager(
         model=model,
         modelname=modelname,
         max_seq_len=model.max_seq_len,
-        dtype=dtype,
+        dtype=dtype_override,
         use_kv_cache=use_kv_cache,
         generate_full_logits=generate_full_logits,
         example_inputs=example_inputs,

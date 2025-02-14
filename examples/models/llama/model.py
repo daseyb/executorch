@@ -171,7 +171,7 @@ the checkpoint format to avoid generating faulty models.
         # Within the device="meta" context, tensors that are created do not carry data.
         # They possess all other metadata a tensor carries such as size, stride, requires_grad.
         with torch.device("meta"):
-            self.model_ = Transformer(model_args)
+            self.model_ = Transformer(model_args).to(dtype=self.dtype)
 
         if "int8" in str(checkpoint_path):
             print("Using int8 weight-only quantization!")
